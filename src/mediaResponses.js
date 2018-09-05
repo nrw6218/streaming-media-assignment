@@ -1,18 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const loadFile = (request, response, fileName, contentType) => {
-  const file = path.resolve(__dirname, fileName);
-
-  fs.stat(file, (err, stats) => {
-    if (err) {
-      if (err.code === 'ENOENT') {
-        response.writeHead(404);
-      }
-      return response.end(err);
-    }
-
-    let { range } = request.headers;
+const buildStream = (request, response, file, stats, contentType) => {
+  let { range } = request.headers;
 
     if (!range) {
       range = 'bytes=0-';
@@ -30,7 +20,7 @@ const loadFile = (request, response, fileName, contentType) => {
     }
 
     const chunksize = (end - start) + 1;
-
+    
     response.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${total}`,
       'Accept-Ranges': 'bytes',
@@ -38,7 +28,21 @@ const loadFile = (request, response, fileName, contentType) => {
       'Content-Type': contentType,
     });
 
-    const stream = fs.createReadStream(file, { start, end });
+    return fs.createReadStream(file, { start, end });
+};
+
+const loadFile = (request, response, fileName, contentType) => {
+  const file = path.resolve(__dirname, fileName);
+
+  fs.stat(file, (err, stats) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        response.writeHead(404);
+      }
+      return response.end(err);
+    }
+
+    const stream = buildStream(request, response, file, stats, contentType);
 
     stream.on('open', () => {
       stream.pipe(response);
